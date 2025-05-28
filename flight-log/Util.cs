@@ -25,17 +25,15 @@ public static class Util
 
         using var image = new Bitmap(filePath);
         
-        
-
         var data = image.LockBits(new Rectangle(0, 0, image.Width, image.Height), ImageLockMode.ReadWrite,
-            image.PixelFormat);
+            PixelFormat.Format32bppArgb);
 
         // Get the address of the first pixel data
         IntPtr ptr = data.Scan0;
         
         // Declare array to hold the bytes of the bitmap
-        int bytes = Math.Abs(data.Stride) * image.Height;
-        byte[] rgbValues = new byte[bytes];
+        var bytes = Math.Abs(data.Stride) * image.Height;
+        var rgbValues = new byte[bytes];
         
         // Copy the RGB values into the array
         System.Runtime.InteropServices.Marshal.Copy(ptr, rgbValues, 0, bytes);
@@ -44,7 +42,7 @@ public static class Util
         for (var i = 0; i < rgbValues.Length; i += 4)
         {
             // Convert to grayscale
-            int gray = (int)(0.299 * rgbValues[i + 2] + 0.587 * rgbValues[i + 1] + 0.114 * rgbValues[i]);
+            var gray = (int)(0.299 * rgbValues[i + 2] + 0.587 * rgbValues[i + 1] + 0.114 * rgbValues[i]);
             rgbValues[i] = (byte)gray;     // Blue
             rgbValues[i + 1] = (byte)gray; // Green
             rgbValues[i + 2] = (byte)gray; // Red
@@ -54,11 +52,11 @@ public static class Util
             rgbValues[i + 1] = (byte)(255 - rgbValues[i + 1]); // Green
             rgbValues[i + 2] = (byte)(255 - rgbValues[i + 2]); // Red
             
-            // // Apply levels adjustment
-            var level = Levels(rgbValues[i], 0, 132, 75);     // Blue
-            rgbValues[i] = level;
-            rgbValues[i + 1] = level;
-            rgbValues[i + 2] = level;
+            // Apply levels adjustment
+            //var level = Levels(rgbValues[i], 132, 0, 75);     // Blue
+            rgbValues[i] = Levels(rgbValues[i], 132, 0, 75);     // Blue;
+            rgbValues[i + 1] = Levels(rgbValues[i + 1], 132, 0, 75);     // Blue;
+            rgbValues[i + 2] = Levels(rgbValues[i + 2], 132, 0, 75);     // Blue;
         }
         
         // Copy the modified RGB values back to the bitmap
@@ -66,7 +64,7 @@ public static class Util
         // Unlock the bits
         image.UnlockBits(data);
         
-        #if DEBUG
+#if DEBUG
         image.Save("inverted_image.png", ImageFormat.Png); // Save inverted image for debugging
 #endif
         
@@ -81,14 +79,19 @@ public static class Util
 
     private static byte Levels(byte color, int whitePoint, int blackPoint, int gamma)
     {
-        // Apply levels adjustment to the color
-        //int c = color;
-        int r = ((color - blackPoint) * 255 / (whitePoint - blackPoint));
-
+        // scale color value from the 0-255 range to the new range defined by whitePoint and blackPoint
+        var r = (255 * (color - blackPoint)) / (whitePoint - blackPoint);
+        
         // Apply gamma correction
         r = (int)(Math.Pow(r / 255.0, gamma / 100.0) * 255);
+        
+        // Clamp the value to the 0-255 range
+        if (r < 0) r = 0;
+        if (r > 255) r = 255;
+        
 
         return (byte)r;
     }
+    
 #pragma warning restore CA1416
 }

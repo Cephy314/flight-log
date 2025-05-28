@@ -4,19 +4,21 @@ using flight_log;
 using TesseractOCR;
 using TesseractOCR.Enums;
 
-
+// Elevation Roll Yaw
 // Coordinates for the region to scan with OCR
-var region = Rect.FromCoords(3200, 45, 3835, 63);
+var region = Rect.FromCoords(3200, 26, 3835, 45);
 
 Console.WriteLine("UEE Pathfinders - Flight Log 1.0");
 
-var currentDirectory = Directory.GetCurrentDirectory();
+var currentDirectory = Environment.CurrentDirectory;
+//var currentDirectory = Directory.GetCurrentDirectory();
 
 // check to make sure there is a mask.png file in the current directory
 var maskFilePath = Path.Combine(currentDirectory, "mask.png");
 if (!File.Exists(maskFilePath))
 {
-    Console.WriteLine("mask.png file not found in the current directory. You must have a mask.png to cover the r_displayinfo 1 data in the screenshots.");
+    Console.WriteLine("mask.png file not found in the current directory. " +
+                      "You must have a mask.png to cover the r_displayinfo 1 data in the screenshots.");
     return;
 }
 
@@ -24,7 +26,7 @@ Console.WriteLine("mask.png found...");
 
 // scan local director for files with .png extension and add them to a list.
 var pngFiles = Directory.GetFiles(currentDirectory, "*.png")
-    .Where(f => !f.Contains("mask.png" ))
+    .Where(f => !f.Contains("mask.png") && !f.Contains("inverted") )
     .ToList();
 
 // if no files found, print a message and exit
@@ -40,7 +42,7 @@ Console.WriteLine($"Found {pngFiles.Count} PNG files in the current directory.")
 pngFiles.Sort((x, y) => File.GetCreationTime(x).CompareTo(File.GetCreationTime(y)));
 
 var logEntries = new List<FlightLogEntry>();
-var engine = new TesseractOCR.Engine("./", "eng", EngineMode.Default );
+var engine = new TesseractOCR.Engine(AppDomain.CurrentDomain.BaseDirectory, "eng", EngineMode.Default );
 foreach (var pngFile in pngFiles)
 {
     if(!File.Exists(pngFile))
@@ -109,27 +111,40 @@ using (var writer = new StreamWriter(logFilePath))
 {
     foreach (var entry in logEntries)
     {
-        writer.WriteLine($"{entry.FileName} {entry.X:F4} {entry.Y:F4} {entry.Z:F4}");
+        writer.WriteLine($"{entry.FileName};{entry.X:F4};{entry.Y:F4};{entry.Z:F4}");
     }
 }
 engine.Dispose();
+return;
 
 
-static Double ParseCoordinate(string coord)
+static double ParseCoordinate(string coord)
 {
-    var num = coord.Replace("km", "").Trim();
-    num = num.Replace(',', '.'); // Replace comma with dot for decimal parsing
+    coord = coord.ToLower();
+    bool isKm = coord.EndsWith("km", StringComparison.InvariantCultureIgnoreCase) ||
+                coord.EndsWith("k", StringComparison.InvariantCultureIgnoreCase);
+    
+        coord = coord.Replace("k", "").Trim();
+        coord = coord.Replace("m", "").Trim();
+  
+    
+    coord = coord.Replace(',', '.'); // Replace comma with dot for decimal parsing
     if (CharacterCount(coord, '.') > 1)
     {
         Console.WriteLine($"Invalid coordinate value '{coord}'. Expected a single decimal point.");
         return 0; // Return 0 or handle as needed
     }
-    if (!double.TryParse(num, out var parsedResult))
+    if (!double.TryParse(coord, out var parsedResult))
     {
         Console.WriteLine($"Invalid coordinate value '{coord}'. Expected numeric values.");
         return 0;
     }
-    return parsedResult * 1000; // Convert km to m
+
+    if (isKm)
+    {
+        parsedResult *= 1000; // Convert km to m
+    }
+    return parsedResult;
 }
 
 static int CharacterCount(string str, char c)
